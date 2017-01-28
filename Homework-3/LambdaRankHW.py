@@ -188,3 +188,5 @@ class LambdaRankHW:
                 'train_loss': avg_train_loss,
             }
 
+# ranker = LambdaRankHW(64)
+query.load_queries()
