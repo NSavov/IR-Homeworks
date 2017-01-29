@@ -4,9 +4,7 @@ from LambdaRankHW import *
 import numpy
 import math
 
-
-
-def read_queries(fold) 
+def read_queries(fold) :
     train_queries = query.load_queries("HP2003\Fold" + str(fold) + "\\train.txt", 64)
     test_queries = query.load_queries("HP2003\Fold" + str(fold) + "\\test.txt", 64)
     val_queries = query.load_queries("HP2003\Fold" + str(fold) + "\\vali.txt", 64)
@@ -49,22 +47,20 @@ def get_NDCG(scores, labels, k):
     NDCG = sum / sum2
     return NDCG
 
+def score_queries(queries):
+    average_ndcg = 0
+    for query in queries:
+        scores = ranker.score(query)
+        labels = query.get_labels()
+        NDCG = get_NDCG(scores, labels, min(len(scores), 10))
+        average_ndcg += NDCG
+        print(query.get_qid(), NDCG)
+
+    print("Final NDCG:", average_ndcg / len(queries))
 
         
-train_queries, val_queries,test_queries = read_queries(1)
+queries_train, queries_val,queries_test = read_queries(1)
 
 ranker = LambdaRankHW(64)
-ranker.train_with_queries(train_queries,10)
-
-
-average_ndcg = 0
-
-for query in val_queries:
-    scores = ranker.score(query)
-    labels = query.get_labels()
-    NDCG = get_NDCG(scores,labels, min(len(scores), 10))
-    average_ndcg += NDCG
-    print(query.get_qid(),NDCG)
-    
-print("Final NDCG:", average_ndcg/len(val_queries))
-        
+ranker.train_with_queries(queries_train,10)
+score_queries(queries_val)

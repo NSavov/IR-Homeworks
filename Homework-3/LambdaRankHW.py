@@ -12,7 +12,7 @@ import query
 NUM_EPOCHS = 500
 
 BATCH_SIZE = 1000
-NUM_HIDDEN_UNITS = 100
+NUM_HIDDEN_UNITS = 200
 LEARNING_RATE = 0.00005
 MOMENTUM = 0.95
 
@@ -22,6 +22,7 @@ def lambda_loss(output, lambdas):
 
 
 class LambdaRankHW:
+
 
     NUM_INSTANCES = count()
 
@@ -33,10 +34,11 @@ class LambdaRankHW:
     # train_queries are what load_queries returns - implemented in query.py
     def train_with_queries(self, train_queries, num_epochs):
         try:
+            now = time.time()
             for epoch in self.train(train_queries):
                 if epoch['number'] % 10 == 0:
                     print("Epoch {} of {} took {:.3f}s".format(
-                    epoch['number'], num_epochs, time.time() - 0))
+                    epoch['number'], num_epochs, time.time() - now))
                     print("training loss:\t\t{:.6f}\n".format(epoch['train_loss']))
                     now = time.time()
                 if epoch['number'] >= num_epochs:
@@ -86,8 +88,9 @@ class LambdaRankHW:
                           X_tensor_type=T.matrix,
                           batch_size=BATCH_SIZE,
                           learning_rate=LEARNING_RATE, momentum=MOMENTUM, L1_reg=0.0000005, L2_reg=0.000003):
-        """Create functions for training, validation and testing to iterate one
-           epoch.
+        """
+            Create functions for training, validation and testing to iterate one
+            epoch.
         """
         X_batch = X_tensor_type('x')
         y_batch = T.fvector('y')
@@ -163,6 +166,8 @@ class LambdaRankHW:
 
         # TODO: Comment out (and comment in) to replace labels by lambdas
         #batch_train_loss = self.iter_funcs['train'](X_train, lambdas)
+        # print(len(X_train), len(labels))
+
         batch_train_loss = self.iter_funcs['train'](X_train, labels)
         return batch_train_loss
 
@@ -179,7 +184,6 @@ class LambdaRankHW:
             for index in xrange(len(queries)):
                 random_index = random_batch[index]
                 labels = queries[random_index].get_labels()
-
                 batch_train_loss = self.train_once(X_trains[random_index],queries[random_index],labels)
                 batch_train_losses.append(batch_train_loss)
 
@@ -192,4 +196,3 @@ class LambdaRankHW:
             }
 
 # ranker = LambdaRankHW(64)
-#query.load_queries()
