@@ -36,7 +36,7 @@ class LambdaRankHW:
             for epoch in self.train(train_queries):
                 if epoch['number'] % 10 == 0:
                     print("Epoch {} of {} took {:.3f}s".format(
-                    epoch['number'], num_epochs, time.time() - now))
+                    epoch['number'], num_epochs, time.time() - 0))
                     print("training loss:\t\t{:.6f}\n".format(epoch['train_loss']))
                     now = time.time()
                 if epoch['number'] >= num_epochs:
@@ -156,7 +156,10 @@ class LambdaRankHW:
         # lambdas = self.compute_lambdas_theano(query,labels)
         # lambdas.resize((BATCH_SIZE, ))
 
-        X_train.resize((BATCH_SIZE, self.feature_count),refcheck=False)
+        resize_value=min(BATCH_SIZE,len(labels))
+        pass
+        X_train.resize((resize_value, self.feature_count),refcheck=False)
+        #X_train.resize((BATCH_SIZE, self.feature_count),refcheck=False)
 
         # TODO: Comment out (and comment in) to replace labels by lambdas
         #batch_train_loss = self.iter_funcs['train'](X_train, lambdas)
@@ -189,4 +192,4 @@ class LambdaRankHW:
             }
 
 # ranker = LambdaRankHW(64)
-query.load_queries()
+#query.load_queries()
