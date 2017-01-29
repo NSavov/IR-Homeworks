@@ -18,8 +18,7 @@ MOMENTUM = 0.95
 
 # TODO: Implement the lambda loss function
 def lambda_loss(output, lambdas):
-    raise "Unimplemented"
-
+    return np.dot(output, lambdas)
 
 class LambdaRankHW:
 
@@ -102,10 +101,9 @@ class LambdaRankHW:
 
         # TODO: Change loss function
         # Point-wise loss function (squared error) - comment it out
-        loss_train = lasagne.objectives.squared_error(output,y_batch)
+        # loss_train = lasagne.objectives.squared_error(output,y_batch)
         # Pairwise loss function - comment it in
-        # loss_train = lambda_loss(output,y_batch)
-
+        loss_train = lambda_loss(output,y_batch)
         loss_train = loss_train.mean()
 
         # TODO: (Optionally) You can add regularization if you want - for those interested
@@ -145,7 +143,31 @@ class LambdaRankHW:
 
     # TODO: Implement the aggregate (i.e. per document) lambda function
     def lambda_function(self,labels, scores):
-        pass
+        ranking = range(len(labels))
+        lambdas = np.zeros(len(ranking)**2).reshape((len(ranking),len(ranking)))
+
+        for r1 in ranking:
+            for r2 in ranking:
+                s = 0
+                if labels[r1] > labels[r2]:
+                    s = 1
+                elif labels[r1] < labels[r2]:
+                    s = -1
+
+                lambdas[r1, r2] = 0.5 * (1 - s) - 1.0 / (1 + np.exp(scores[r1] - scores[r2]))
+                lambdas[r2, r1] = 0.5 * (1 + s) - 1.0 / (1 + np.exp(scores[r2] - scores[r1]))
+
+        aggregated_l = []
+        for r1 in ranking:
+            new_lam = 0
+            for r2 in ranking:
+                if labels[r1] > labels[r2]:
+                    new_lam += lambdas[r1, r2]
+                elif labels[r1] < labels[r2]:
+                    new_lam -= lambdas[r1, r2]
+            aggregated_l.append(new_lam)
+
+        return np.array(aggregated_l, dtype='float32')
 
 
     def compute_lambdas_theano(self,query, labels):
@@ -156,19 +178,20 @@ class LambdaRankHW:
     def train_once(self, X_train, query, labels):
 
         # TODO: Comment out to obtain the lambdas
-        # lambdas = self.compute_lambdas_theano(query,labels)
-        # lambdas.resize((BATCH_SIZE, ))
+        lambdas = self.compute_lambdas_theano(query,labels)
+        print(lambdas.dtype)
+        lambdas.resize((BATCH_SIZE, ))
 
-        resize_value=min(BATCH_SIZE,len(labels))
-        pass
-        X_train.resize((resize_value, self.feature_count),refcheck=False)
-        #X_train.resize((BATCH_SIZE, self.feature_count),refcheck=False)
+        # resize_value=min(BATCH_SIZE,len(labels))
+        # X_train.resize((resize_value, self.feature_count),refcheck=False)
+        X_train.resize((BATCH_SIZE, self.feature_count),refcheck=False)
 
         # TODO: Comment out (and comment in) to replace labels by lambdas
-        #batch_train_loss = self.iter_funcs['train'](X_train, lambdas)
+        batch_train_loss = self.iter_funcs['train'](X_train, lambdas)
+
         # print(len(X_train), len(labels))
 
-        batch_train_loss = self.iter_funcs['train'](X_train, labels)
+        # batch_train_loss = self.iter_funcs['train'](X_train, labels)
         return batch_train_loss
 
 

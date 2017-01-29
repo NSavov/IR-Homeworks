@@ -47,7 +47,7 @@ def get_NDCG(scores, labels, k):
     NDCG = sum / sum2
     return NDCG
 
-def score_queries(queries):
+def score_queries(ranker, queries):
     average_ndcg = 0
     for query in queries:
         scores = ranker.score(query)
@@ -59,8 +59,38 @@ def score_queries(queries):
     print("Final NDCG:", average_ndcg / len(queries))
 
         
-queries_train, queries_val,queries_test = read_queries(1)
+# queries_train, queries_val,queries_test = read_queries(1)
+#
+# ranker = LambdaRankHW(64)
+# ranker.train_with_queries(queries_val,1)
+# score_queries(ranker, queries_val)
 
-ranker = LambdaRankHW(64)
-ranker.train_with_queries(queries_train,10)
-score_queries(queries_val)
+# labels=[0,1,0,2,1]
+# scores=[0.3, 1, 0.5, 0, 0]
+#
+# ranking = range(len(labels))
+# lambdas = np.zeros(len(ranking) ** 2).reshape((len(ranking), len(ranking)))
+#
+# #
+# for r1 in ranking:
+#     for r2 in ranking:
+#         s = 0
+#         if labels[r1] > labels[r2]:
+#             s = 1
+#         elif labels[r1] < labels[r2]:
+#             s = -1
+#
+#         lambdas[r1, r2] = 0.5 * (1 - s) - 1.0 / (1 + np.exp(scores[r1] - scores[r2]))
+#         lambdas[r2, r1] = 0.5 * (1 + s) - 1.0 / (1 + np.exp(scores[r2] - scores[r1]))
+#
+# aggregated_l = []
+# for r1 in ranking:
+#     new_lam = 0
+#     for r2 in ranking:
+#         if labels[r1] > labels[r2]:
+#             new_lam += lambdas[r1, r2]
+#         elif labels[r1] < labels[r2]:
+#             new_lam -= lambdas[r1, r2]
+#     aggregated_l.append(new_lam)
+#
+# print(aggregated_l)
