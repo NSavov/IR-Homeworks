@@ -12,51 +12,52 @@ def read_queries(fold) :
 
 
 def get_NDCG(scores, labels, k):
-    indexes = numpy.arange(len(scores))
-    
+    indexes = np.arange(len(scores))
+
     scores = zip(scores, indexes)
-    scores = sorted(scores, key = lambda x: -x[0])
-    
-    
-#     print(query.get_qid(),":", len(labels))
-#     print(query.get_qid(), ":", len(scores))
-    
+    scores = sorted(scores, key=lambda x: -x[0])
+
     # DCG @ k
     sum = 0
     for r in range(k):
-#         print(scores[r][1], labels[scores[r][1]])
-        val =  numpy.power(2, labels[scores[r][1]]) - 1
-        val /= math.log(r + 1+1,2)
+        #         print(scores[r][1], labels[scores[r][1]])
+        val = np.power(2, labels[scores[r][1]]) - 1
+        val /= math.log(r + 1 + 1, 2)
         sum += val
-        
-#     print("labels")
-    #NDCG
+
+    # NDCG
     sum2 = 0
-    labels = sorted(labels,  key = lambda x: -x)
+    labels = sorted(labels, key=lambda x: -x)
     for r in range(k):
-#         print(labels[r])
-        val =  numpy.power(2, labels[r]) - 1
-        val /= math.log(r + 1+1, 2)
+        val = np.power(2, labels[r]) - 1
+        val /= math.log(r + 1 + 1, 2)
         sum2 += val
-    
+
     if sum2 == 0:
         return 0
-        
-#     print(sum,sum2)
-    
+
     NDCG = sum / sum2
     return NDCG
 
-def score_queries(ranker, queries):
+def score_queries(ranker, queries, k):
     average_ndcg = 0
+    ctr = 0
     for query in queries:
         scores = ranker.score(query)
         labels = query.get_labels()
-        NDCG = get_NDCG(scores, labels, min(len(scores), 10))
+        NDCG = get_NDCG(scores, labels, min(len(scores), k))
+        if NDCG == -1 :
+            continue
+        ctr += 1
         average_ndcg += NDCG
         print(query.get_qid(), NDCG)
 
-    print("Final NDCG:", average_ndcg / len(queries))
+    print("Final NDCG:", average_ndcg / ctr)
+    return average_ndcg / ctr
+
+
+# def filter_queries(queries):
+#
 
         
 # queries_train, queries_val,queries_test = read_queries(1)

@@ -8,6 +8,7 @@ import theano.tensor as T
 import time
 from itertools import count
 import query
+import math
 
 NUM_EPOCHS = 500
 
@@ -18,24 +19,52 @@ MOMENTUM = 0.95
 
 # TODO: Implement the lambda loss function
 def lambda_loss(output, lambdas):
-    return np.dot(output, lambdas)
+    return np.multiply(output, lambdas)
+
+def get_max_DCG(labels, k):
+    sum2 = 0
+    labels = sorted(labels, key=lambda x: -x)
+    for r in range(k):
+        val = np.power(2, labels[r]) - 1
+        val /= math.log(r + 1 + 1, 2)
+        sum2 += val
+
+    if sum2 == 0:
+        return 0
+
+    return sum2
+
+def get_NDCG_fast(labels, k, maxDCG):
+    # DCG @ k
+    sum = 0
+    for r in range(k):
+        #         print(scores[r][1], labels[scores[r][1]])
+        val = np.power(2, labels[r]) - 1
+        val /= math.log(r + 1 + 1, 2)
+        sum += val
+
+    # NDCG
+    NDCG = sum / maxDCG
+    return NDCG
 
 class LambdaRankHW:
 
 
     NUM_INSTANCES = count()
 
-    def __init__(self, feature_count):
+    def __init__(self, feature_count, rank_type = "lambda_rank"):
+        self.rank_type = rank_type
         self.feature_count = feature_count
         self.output_layer = self.build_model(feature_count,1,BATCH_SIZE)
         self.iter_funcs = self.create_functions(self.output_layer)
+
 
     # train_queries are what load_queries returns - implemented in query.py
     def train_with_queries(self, train_queries, num_epochs):
         try:
             now = time.time()
             for epoch in self.train(train_queries):
-                if epoch['number'] % 10 == 0:
+                if epoch['number'] % 1 == 0:
                     print("Epoch {} of {} took {:.3f}s".format(
                     epoch['number'], num_epochs, time.time() - now))
                     print("training loss:\t\t{:.6f}\n".format(epoch['train_loss']))
@@ -101,10 +130,14 @@ class LambdaRankHW:
 
         # TODO: Change loss function
         # Point-wise loss function (squared error) - comment it out
-        # loss_train = lasagne.objectives.squared_error(output,y_batch)
         # Pairwise loss function - comment it in
-        loss_train = lambda_loss(output,y_batch)
-        loss_train = loss_train.mean()
+
+        if self.rank_type == "pointwise":
+            loss_train = lasagne.objectives.squared_error(output,y_batch)
+            loss_train = loss_train.mean()
+        else:
+            loss_train = lambda_loss(output, y_batch)
+            loss_train = loss_train.sum()
 
         # TODO: (Optionally) You can add regularization if you want - for those interested
         # L1_loss = lasagne.regularization.regularize_network_params(output_layer,lasagne.regularization.l1)
@@ -142,17 +175,70 @@ class LambdaRankHW:
         )
 
     # TODO: Implement the aggregate (i.e. per document) lambda function
-    def lambda_function(self,labels, scores):
-        ranking = range(len(labels))
-        lambdas = np.zeros(len(ranking)**2).reshape((len(ranking),len(ranking)))
 
-        for r1 in ranking:
+    #RankNet
+    def lambda_function_lambda_rank(self,labels, scores):
+        # print "lambdarank"
+        ranking = sorted(range(len(labels)), key=lambda x: scores[x])
+        lambdas = np.zeros(len(ranking)**2).reshape((len(ranking),len(ranking)))
+        relevant = filter(lambda x:labels[x]>0, ranking)
+
+        maxDCG = get_max_DCG(labels, len(labels))
+        base_NDCG = get_NDCG_fast(labels, len(labels), maxDCG)
+
+        # print "base NDCG:", base_NDCG
+        reranked_labels = [labels[r] for r in ranking]
+        for r1 in relevant:
             for r2 in ranking:
                 s = 0
                 if labels[r1] > labels[r2]:
                     s = 1
                 elif labels[r1] < labels[r2]:
                     s = -1
+                else:
+                    continue
+
+                #swap
+                reranked_labels[r1], reranked_labels[r2] = reranked_labels[r2], reranked_labels[r1]
+
+                swap_NDCG = get_NDCG_fast(reranked_labels, len(reranked_labels), maxDCG)
+                # print "NDCGs:", base_NDCG, swap_NDCG
+                delta = math.fabs(swap_NDCG-base_NDCG)
+                lambdas[r1, r2] = 0.5 * (1 - s) - 1.0 / (1 + np.exp(scores[r1] - scores[r2])) * delta
+                lambdas[r2, r1] = 0.5 * (1 + s) - 1.0 / (1 + np.exp(scores[r2] - scores[r1])) * delta
+
+                #swap back (restore original reranking)
+                reranked_labels[r1], reranked_labels[r2] = reranked_labels[r2], reranked_labels[r1]
+
+        aggregated_l = []
+        for r1 in ranking:
+            new_lam = 0
+            for r2 in ranking:
+                if labels[r1] > labels[r2]:
+                    new_lam += lambdas[r1, r2]
+                elif labels[r1] < labels[r2]:
+                    new_lam -= lambdas[r1, r2]
+            aggregated_l.append(new_lam)
+
+        return np.array(aggregated_l, dtype='float32')
+
+    #LambdaRank
+    def lambda_function_rank_net(self,labels, scores):
+        # print "ranknet"
+        ranking = sorted(range(len(labels)), key=lambda x: scores[x])
+        lambdas = np.zeros(len(ranking)**2).reshape((len(ranking),len(ranking)))
+        relevant = filter(lambda x:labels[x]>0, ranking)
+
+        # print "base NDCG:", base_NDCG
+        for r1 in relevant:
+            for r2 in ranking:
+                s = 0
+                if labels[r1] > labels[r2]:
+                    s = 1
+                elif labels[r1] < labels[r2]:
+                    s = -1
+                else:
+                    continue
 
                 lambdas[r1, r2] = 0.5 * (1 - s) - 1.0 / (1 + np.exp(scores[r1] - scores[r2]))
                 lambdas[r2, r1] = 0.5 * (1 + s) - 1.0 / (1 + np.exp(scores[r2] - scores[r1]))
@@ -172,24 +258,27 @@ class LambdaRankHW:
 
     def compute_lambdas_theano(self,query, labels):
         scores = self.score(query).flatten()
-        result = self.lambda_function(labels, scores[:len(labels)])
+        if self.rank_type == "rank_net":
+            result = self.lambda_function_rank_net(labels, scores[:len(labels)])
+        else:
+            result = self.lambda_function_lambda_rank(labels, scores[:len(labels)])
         return result
 
     def train_once(self, X_train, query, labels):
-
         # TODO: Comment out to obtain the lambdas
-        lambdas = self.compute_lambdas_theano(query,labels)
-        print(lambdas.dtype)
-        lambdas.resize((BATCH_SIZE, ))
+        if self.rank_type == "pointwise":
+            resize_value = min(BATCH_SIZE, len(labels))
+            X_train.resize((resize_value, self.feature_count), refcheck=False)
+            batch_train_loss = self.iter_funcs['train'](X_train, labels)
+        else:
+            lambdas = self.compute_lambdas_theano(query,labels)
+            lambdas.resize((BATCH_SIZE, ))
+            X_train.resize((BATCH_SIZE, self.feature_count),refcheck=False)
+            batch_train_loss = self.iter_funcs['train'](X_train, lambdas)
 
-        # resize_value=min(BATCH_SIZE,len(labels))
-        # X_train.resize((resize_value, self.feature_count),refcheck=False)
-        X_train.resize((BATCH_SIZE, self.feature_count),refcheck=False)
 
         # TODO: Comment out (and comment in) to replace labels by lambdas
-        batch_train_loss = self.iter_funcs['train'](X_train, lambdas)
-
-        # print(len(X_train), len(labels))
+        # batch_train_loss = self.iter_funcs['train'](X_train, lambdas)
 
         # batch_train_loss = self.iter_funcs['train'](X_train, labels)
         return batch_train_loss
@@ -204,9 +293,11 @@ class LambdaRankHW:
             batch_train_losses = []
             random_batch = np.arange(len(queries))
             np.random.shuffle(random_batch)
+            l = len(queries)
             for index in xrange(len(queries)):
                 random_index = random_batch[index]
                 labels = queries[random_index].get_labels()
+                print str(index) + '/' + str(l)
                 batch_train_loss = self.train_once(X_trains[random_index],queries[random_index],labels)
                 batch_train_losses.append(batch_train_loss)
 
@@ -218,4 +309,3 @@ class LambdaRankHW:
                 'train_loss': avg_train_loss,
             }
 
-# ranker = LambdaRankHW(64)
