@@ -179,7 +179,7 @@ class LambdaRankHW:
     #RankNet
     def lambda_function_lambda_rank(self,labels, scores):
         # print "lambdarank"
-        ranking = sorted(range(len(labels)), key=lambda x: scores[x])
+        ranking = sorted(range(len(labels)), key=lambda x: -scores[x])
         lambdas = np.zeros(len(ranking)**2).reshape((len(ranking),len(ranking)))
         relevant = filter(lambda x:labels[x]>0, ranking)
 
@@ -188,6 +188,7 @@ class LambdaRankHW:
 
         # print "base NDCG:", base_NDCG
         reranked_labels = [labels[r] for r in ranking]
+        # for r1, r2 in zip(ranking, ranking[1:]):
         for r1 in relevant:
             for r2 in ranking:
                 s = 0
@@ -204,28 +205,30 @@ class LambdaRankHW:
                 swap_NDCG = get_NDCG_fast(reranked_labels, len(reranked_labels), maxDCG)
                 # print "NDCGs:", base_NDCG, swap_NDCG
                 delta = math.fabs(swap_NDCG-base_NDCG)
-                lambdas[r1, r2] = 0.5 * (1 - s) - 1.0 / (1 + np.exp(scores[r1] - scores[r2])) * delta
-                lambdas[r2, r1] = 0.5 * (1 + s) - 1.0 / (1 + np.exp(scores[r2] - scores[r1])) * delta
+                lambdas[r1, r2] = -s*(1.0 / (1 + np.exp(scores[r1] - scores[r2]))) * delta#-s*np.fabs(( 1.0 / (1 + np.exp(scores[r1] - scores[r2])))*( 1.0/np.log(r1+1) - 1.0/np.log(r2+1))*(2**labels[r1] - 2**labels[r2]) * (1.0/maxDCG))#-s*( -1.0 / (1 + np.exp(scores[r1] - scores[r2]))) * delta
+                lambdas[r2, r1] = s*(1.0 / (1 + np.exp(scores[r2] - scores[r1]))) * delta#s*np.fabs(( 1.0 / (1 + np.exp(scores[r2] - scores[r1])))*( 1.0/np.log(r2+1) - 1.0/np.log(r1+1))*(2**labels[r2] - 2**labels[r1]) * (1.0/maxDCG))
 
                 #swap back (restore original reranking)
                 reranked_labels[r1], reranked_labels[r2] = reranked_labels[r2], reranked_labels[r1]
 
-        aggregated_l = []
-        for r1 in ranking:
-            new_lam = 0
-            for r2 in ranking:
-                if labels[r1] > labels[r2]:
-                    new_lam += lambdas[r1, r2]
-                elif labels[r1] < labels[r2]:
-                    new_lam -= lambdas[r1, r2]
-            aggregated_l.append(new_lam)
+        # aggregated_l = []
+        # for r1 in ranking:
+        #     new_lam = 0
+        #     for r2 in ranking:
+        #         if labels[r1] > labels[r2]:
+        #             new_lam += lambdas[r1, r2]
+        #         elif labels[r1] < labels[r2]:
+        #             new_lam -= lambdas[r1, r2]
+        #     aggregated_l.append(new_lam)
+
+        aggregated_l = np.sum(lambdas, axis=1)
 
         return np.array(aggregated_l, dtype='float32')
 
     #LambdaRank
     def lambda_function_rank_net(self,labels, scores):
         # print "ranknet"
-        ranking = sorted(range(len(labels)), key=lambda x: scores[x])
+        ranking = range(len(labels))
         lambdas = np.zeros(len(ranking)**2).reshape((len(ranking),len(ranking)))
         relevant = filter(lambda x:labels[x]>0, ranking)
 
@@ -241,18 +244,19 @@ class LambdaRankHW:
                     continue
 
                 lambdas[r1, r2] = 0.5 * (1 - s) - 1.0 / (1 + np.exp(scores[r1] - scores[r2]))
-                lambdas[r2, r1] = 0.5 * (1 + s) - 1.0 / (1 + np.exp(scores[r2] - scores[r1]))
+                lambdas[r2, r1] = -lambdas[r1, r2]#  0.5 * (1 + s) - 1.0 / (1 + np.exp(scores[r2] - scores[r1]))
 
-        aggregated_l = []
-        for r1 in ranking:
-            new_lam = 0
-            for r2 in ranking:
-                if labels[r1] > labels[r2]:
-                    new_lam += lambdas[r1, r2]
-                elif labels[r1] < labels[r2]:
-                    new_lam -= lambdas[r1, r2]
-            aggregated_l.append(new_lam)
+        # aggregated_l = []
+        # for r1 in ranking:
+        #     new_lam = 0
+        #     for r2 in ranking:
+        #         if labels[r1] > labels[r2]:
+        #             new_lam += lambdas[r1, r2]
+        #         elif labels[r1] < labels[r2]:
+        #             new_lam -= lambdas[r2, r1]
+        #     aggregated_l.append(new_lam)
 
+        aggregated_l = np.sum(lambdas, axis=1)
         return np.array(aggregated_l, dtype='float32')
 
 
