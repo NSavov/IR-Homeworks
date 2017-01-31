@@ -17,13 +17,12 @@ def has_relevant_document(labels):
 
 
 def get_NDCG(scores, labels, k):
-    #print(scores)
-    #print(labels)
+    # print(len(scores), len(labels), k)
     indexes = numpy.arange(len(scores))
 
     scores = zip(scores, indexes)
+    scores = scores[:len(labels)]
     scores = sorted(scores, key = lambda x: -x[0])
-    
     # DCG @ k
     sum = 0
     for r in range(k):
@@ -82,7 +81,7 @@ def evaluate(ranker, queries):
         
 		
 
-def Crossfold_validation(rankerClass, folds, epochs):
+def crossfold_validation(rankerClass, folds, epochs):
     all_folds_ndcgs = []
     for fold in folds:
         print "-------------------------------------------------"
@@ -99,7 +98,7 @@ def Crossfold_validation(rankerClass, folds, epochs):
         ranker = rankerClass(64)
         for epoch in range(epochs):
             ranker.train_with_queries(train_queries,1)
-            ndcgs = utils.evaluate(ranker,val_queries)
+            ndcgs = evaluate(ranker,val_queries)
             fold_ndcgs.append(ndcgs['all'])
             print "Epoch %d NDCG: %f"%(epoch + 1, ndcgs['all'])
 
@@ -110,7 +109,30 @@ def Crossfold_validation(rankerClass, folds, epochs):
 
     ndcgs_per_epoch = numpy.mean(all_folds_ndcgs,axis = 0)
     return ndcgs_per_epoch
+
+def evaluate_all(RankerClass, folds, epochs):
+    all_folds_ndcgs = []
+    for fold in folds:
+        #load queries
+        train_queries = fold[0]
+        val_queries = fold[1]
+        test_queries = fold[2]
+
+        #train ranker
+        ranker = RankerClass(64)
+        for epoch in range(epochs):
+            ranker.train_with_queries(train_queries,1)
+            ranker.train_with_queries(val_queries,1)
+            print "Epoch %d "%(epoch + 1)
+
+        ndcgs = evaluate(ranker, test_queries)
+
+        all_folds_ndcgs.append(ndcgs)
     
-    
-    
-        
+    return all_folds_ndcgs
+
+def get_eval_list(eval_dicts):
+    l = []
+    for dictionary in eval_dicts:
+        l.extend(dictionary.values())
+    return l

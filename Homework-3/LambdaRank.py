@@ -118,12 +118,12 @@ class LambdaRank:
 
        
         loss_train = lambda_loss(output, y_batch)
-        loss_train = loss_train.sum()
+        # loss_train = loss_train.sum()
 
         # TODO: (Optionally) You can add regularization if you want - for those interested
-        # L1_loss = lasagne.regularization.regularize_network_params(output_layer,lasagne.regularization.l1)
-        # L2_loss = lasagne.regularization.regularize_network_params(output_layer,lasagne.regularization.l2)
-        # loss_train = loss_train.mean() + L1_loss * L1_reg + L2_loss * L2_reg
+        L1_loss = lasagne.regularization.regularize_network_params(output_layer,lasagne.regularization.l1)
+        L2_loss = lasagne.regularization.regularize_network_params(output_layer,lasagne.regularization.l2)
+        loss_train = loss_train.sum() + L1_loss * L1_reg + L2_loss * L2_reg
 
         # Parameters you want to update
         all_params = lasagne.layers.get_all_params(output_layer)
@@ -157,7 +157,6 @@ class LambdaRank:
 
     # TODO: Implement the aggregate (i.e. per document) lambda function
 
-    #RankNet
     def lambda_function(self,labels, scores):
         ranking = sorted(range(len(labels)), key=lambda x: -scores[x])
         lambdas = np.zeros(len(ranking)**2).reshape((len(ranking),len(ranking)))
