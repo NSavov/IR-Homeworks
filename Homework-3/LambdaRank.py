@@ -118,12 +118,12 @@ class LambdaRank:
 
        
         loss_train = lambda_loss(output, y_batch)
-        # loss_train = loss_train.sum()
+        loss_train = loss_train.sum()
 
         # TODO: (Optionally) You can add regularization if you want - for those interested
-        L1_loss = lasagne.regularization.regularize_network_params(output_layer,lasagne.regularization.l1)
-        L2_loss = lasagne.regularization.regularize_network_params(output_layer,lasagne.regularization.l2)
-        loss_train = loss_train.sum() + L1_loss * L1_reg + L2_loss * L2_reg
+        # L1_loss = lasagne.regularization.regularize_network_params(output_layer,lasagne.regularization.l1)
+        # L2_loss = lasagne.regularization.regularize_network_params(output_layer,lasagne.regularization.l2)
+        # loss_train = loss_train.sum() + L1_loss * L1_reg + L2_loss * L2_reg
 
         # Parameters you want to update
         all_params = lasagne.layers.get_all_params(output_layer)
@@ -209,7 +209,8 @@ class LambdaRank:
                 sys.stdout.flush()
                 batch_train_loss = self.train_once(X_trains[random_index],queries[random_index],labels)
                 batch_train_losses.append(batch_train_loss)
-
+            sys.stdout.write("\r")
+            sys.stdout.flush()
 
             avg_train_loss = np.mean(batch_train_losses)
 

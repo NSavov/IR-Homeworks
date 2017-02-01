@@ -2,6 +2,8 @@ import document
 import query 
 import numpy
 import math
+from scipy import stats
+import itertools
 
 def read_queries(fold) :
     train_queries = query.load_queries("HP2003\Fold" + str(fold) + "\\train.txt", 64)
@@ -83,8 +85,10 @@ def evaluate(ranker, queries):
 
 def crossfold_validation(rankerClass, folds, epochs):
     all_folds_ndcgs = []
+    cnt=0
     for fold in folds:
-        print "-------------------------------------------------"
+        cnt+=1
+        print "------------------Fold %d-------------------------------" %cnt
 
         #load queries
         train_queries = fold[0]
@@ -131,8 +135,41 @@ def evaluate_all(RankerClass, folds, epochs):
     
     return all_folds_ndcgs
 
-def get_eval_list(eval_dicts):
+def get_eval_list(folds, eval_dicts):
     l = []
-    for dictionary in eval_dicts:
-        l.extend(dictionary.values())
+    c =0
+    for _, _, test in folds:
+        for queryID in test.keys():
+            if queryID != 'all':
+                labels = test[queryID].get_labels()
+                if has_relevant_document(labels):
+                    l.append(eval_dicts[c][queryID])
+        c+=1
+    #for dictionary in eval_dicts:
+    #    l.extend(dictionary.values())
     return l
+
+def compute_significance(results, alpha = 0.05):
+    ranker_names = list(results.keys())
+    
+    pairwise = list(itertools.combinations(ranker_names, 2))
+         
+    p_values = []
+    
+    for pair in pairwise:
+        a = results[pair[0]]
+        b = results[pair[1]]
+        p_value = stats.ttest_rel(a,b)[1]
+        p_values.append((pair,p_value))
+        
+#     #Bonferroni correction
+    alpha_c = alpha / len(pairwise)
+    print("Bonferroni corrected alpha:", alpha_c)
+    
+    
+    reject = []
+    for p_value in p_values:
+        reject.append((p_value[0], p_value[1] < alpha_c))
+    
+    
+    return p_values, reject
